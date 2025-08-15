@@ -146,17 +146,146 @@ class MainViews(LoginRequiredMixin, FormMixin, ListView):
         return super().get(request, *args, **kwargs)
 
     def export_to_excel_by_config(self):
+
         start_date = self.request.GET.get("start_date")
         end_date = self.request.GET.get("end_date")
         operation_type = self.request.GET.get("operation_type")
-        print(start_date, end_date, operation_type, "<=================")
-        qs = TrainEvent.objects.select_related("tariff").prefetch_related('wagons').filter(event_date__range=(start_date, end_date)).filter(operation_type=operation_type)
 
-        for i in qs:
-            wagons = i.wagons.all()
-            print(wagons.values_list("wagon_number", flat=True))
+        if start_date and end_date:
+            qs = TrainEvent.objects.select_related("tariff").prefetch_related('wagons').filter(event_date__range=(start_date, end_date)).filter(operation_type=operation_type)
 
-        return HttpResponse("12")
+            wb = Workbook()
+            ws = wb.active
+
+            for i in qs:
+                wagons = i.wagons.all()
+                event_date = wagons.values_list("event__event_date", flat=True)
+                event_time = wagons.values_list("event__event_time", flat=True)
+                operation_type = wagons.values_list("event__operation_type", flat=True)
+                # print(wagons.values_list("wagon_number", flat=True))
+                # print(wagons.values_list("event__event_date", flat=True))
+                ws = wb.create_sheet(f"{event_date[0].strftime("%d.%m.%Y")}.")
+
+                #  Создание таблицы
+                ws.column_dimensions['A'].width = 4
+                ws.column_dimensions['B'].width = 39
+                ws.column_dimensions['C'].width = 4
+                ws.column_dimensions['D'].width = 13
+                ws.column_dimensions['E'].width = 10
+                ws.column_dimensions['F'].width = 21
+                ws.column_dimensions["G"].width = 12
+                ws.column_dimensions["H"].width = 12
+                ws.column_dimensions["I"].width = 12
+                ws.column_dimensions["J"].width = 12
+                ws.column_dimensions["K"].width = 12
+                ws.column_dimensions["L"].width = 12
+                ws.column_dimensions["M"].width = 15
+                ws.column_dimensions["N"].width = 17
+                ws.column_dimensions["O"].width = 13
+
+                ws.merge_cells('B1:C2')
+                ws.merge_cells('D1:D2')
+                ws.merge_cells('E1:E2')
+                ws.merge_cells('F1:F2')
+                ws.merge_cells('D1:D2')
+                ws.merge_cells('G1:I2')
+                ws.merge_cells('J1:J2')
+                ws.merge_cells('K1:K2')
+                ws.merge_cells('L1:L2')
+                ws.merge_cells('M1:M2')
+                ws.merge_cells('N1:O2')
+
+                font = Font(name="TimesNewRoman", size=12, bold=True, color="000000")
+                font_wagons = Font(name="TimesNewRoman", size=12, bold=False, color="000000")
+                alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+
+                thin = Side(border_style="thin", color="000000")
+
+                for border_cords in range(2, 16):
+                    ws.cell(row=1, column=border_cords).border = Border(top=thin, left=thin, bottom=thin, right=thin)
+                    ws.cell(row=2, column=border_cords).border = Border(top=thin, left=thin, bottom=thin, right=thin)
+                    ws.cell(row=1, column=border_cords).font = font
+                    ws.cell(row=1, column=border_cords).alignment = alignment
+
+                ws["O3"].alignment = alignment
+
+                ws["D1"] = "проезд локомотива (1,5*2)"
+                ws["E1"] = "Подача"
+                ws["F1"] = "Подача вагона+локомотив"
+                ws["G1"] = "Протяженность"
+                ws["J1"] = "Обьем за вагон"
+                ws["K1"] = "Обьем за локоматив"
+                ws["L1"] = "Итого обьем"
+                ws["M1"] = 'Тариф ТОО "Е.Ж.Д."'
+                ws["N1"] = "Итого"
+
+                wagons_number = wagons.values_list("wagon_number", flat=True)
+                destination_name = wagons.values_list("destination__name", flat=True)
+                tariff = wagons.values_list("event__tariff__tariff", flat=True)
+
+                operation_type = operation_type[0]
+
+                if operation_type == "arrival":
+                    operation_type = "Пригон"
+                elif operation_type == "removal":
+                    operation_type = "Уборка"
+
+                wagons_count = len(wagons_number)
+                event = qs.first()
+                all_wagons = event.wagons.all()
+
+                distances = list(wagons.values_list('destination__distance_km', flat=True))
+                min_distances = float(min(distances)) if distances else distances
+
+                event_datetime_info = f"{event.event_date.strftime("%d.%m.%Y")} ({operation_type} {event_time[0].strftime("%H:%M")})"
+
+                ws["B1"] = event_datetime_info
+
+                for border_x in range(wagons_count):
+                    ws.cell(row=border_x + 3, column=1).value = border_x + 1
+                    ws.cell(row=border_x + 3, column=2).value = f"{destination_name[border_x]}: {wagons_number[border_x]}"
+                    ws.cell(row=border_x + 3, column=3).value = 1
+                    ws.cell(row=border_x + 3, column=4).value = 3
+                    ws.cell(row=border_x + 3, column=5).value = 1
+                    ws.cell(row=border_x + 3, column=6).value = "=C3+D3*E3"
+                    ws.cell(row=border_x + 3, column=7).value = min_distances
+                    ws.cell(row=border_x + 3, column=8).value = float(distances[border_x]) - min_distances
+                    ws.cell(row=border_x + 3, column=10).value = f"=SUM(G{3 + border_x}:I{3 + border_x})"
+                    ws.cell(row=border_x + 3, column=10).number_format = "0.000"
+                    ws.cell(row=border_x + 3,
+                            column=11).value = f"=D{3 + border_x}*G{3 + border_x}/{wagons_count}+D{3 + border_x}*H{3 + border_x}/{(wagons_count - 1) if wagons_count > 1 else wagons_count}"
+                    ws.cell(row=border_x + 3, column=11).number_format = "0.000"
+                    ws.cell(row=border_x + 3, column=12).value = f"=SUM(J{3 + border_x}:K{3 + border_x})"
+                    ws.cell(row=border_x + 3, column=12).number_format = "0.000"
+                    ws.cell(row=border_x + 3, column=13).value = tariff[border_x]
+                    ws.cell(row=border_x + 3, column=14).font = font_wagons
+                    ws.cell(row=border_x + 3, column=14).value = f"=L{3 + border_x}*M{3 + border_x}"
+                    ws.cell(row=border_x + 3, column=14).number_format = "0.00"
+                    ws.cell(row=3, column=15).font = font_wagons
+                    ws.cell(row=3, column=15).value = f"=SUM(N3:N{wagons_count + 2})"
+                    ws.cell(row=3, column=15).number_format = "0.00"
+
+                    ws.merge_cells(f'O3:O{wagons_count + 2}')
+
+                    for border_range in range(2, 16):
+                        ws.cell(row=3 + border_x, column=border_range).border = Border(top=thin, left=thin, bottom=thin,
+                                                                                       right=thin)
+                        ws.cell(row=border_x + 3, column=border_range).font = font_wagons
+
+            buffer = io.BytesIO()
+            wb.save(buffer)
+            buffer.seek(0)
+
+            filename = f"test.xlsx"
+            resp = HttpResponse(buffer.getvalue(),
+                                content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+            return resp
+            # return HttpResponse("1")
+            resp["Content-Disposition"] = f'attachment; filename="{filename}"'
+            resp["Content-Length"] = buffer.getbuffer().nbytes
+
+        else:
+            return redirect("main")
 
     def export_to_excel(self):
         event_id = self.request.GET.get('event_id')
