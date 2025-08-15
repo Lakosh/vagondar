@@ -7,5 +7,6 @@ from .forms import CustomLoginForm
 urlpatterns = [
     path('login/', LoginView.as_view(template_name="accounts/login_page.html", authentication_form=CustomLoginForm), name="login"),
     path('logout/', LogoutView.as_view(next_page="login"), name='logout'),
-    path('profile/', views.ProfileView.as_view(), name="profile")
+    path('profile/', views.ProfileView.as_view(), name="profile"),
+    path('profile/download/', views.download_db, name="download_db")
 ]
