@@ -1,0 +1,22 @@
+{% extends 'main/layout.html' %}
+{% load static %}
+
+{% block content %}
+<link rel="stylesheet" href="{% static 'accounts/css/register_login.css' %}">
+<div class="parent">
+    <div class="blur-block" >
+        <div class="form-container">
+            <form method="post">
+                {% csrf_token %}
+                {{ form.username }}
+                <br>
+                <br>
+                {{ form.password }}
+                <br>
+                <br>
+            <button><strong>Вход</strong></button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
